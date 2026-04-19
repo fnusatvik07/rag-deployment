@@ -1,40 +1,34 @@
-# RAG Classic — Simple RAG Chatbot
+# RAG Classic — Agentic RAG Chatbot
 
 A production-style Retrieval-Augmented Generation (RAG) chatbot built with **Pinecone**, **LangChain**, and **FastAPI**.
 
-It ingests PDF documents, chunks them with page-number tracking, stores them in a Pinecone serverless index with integrated embedding, and answers questions with inline citations and page references.
-
----
+It ingests PDF documents, chunks them with page-number tracking, stores them in a Pinecone serverless index with integrated embedding, and answers questions with inline citations and page references. Features an **agentic pipeline** that decomposes complex queries into sub-queries for multi-source retrieval.
 
 ## Architecture
 
 ```
-  ┌────────────────── INGESTION PIPELINE ──────────────────┐
-  │                                                        │
-  │  PDF ──▶ Page Extraction ──▶ Chunking ──▶ Pinecone     │
-  │          (per-page text)    (512 chars,   (upsert with  │
-  │                              64 overlap)  integrated    │
-  │                                           embedding)    │
-  └────────────────────────────────────────────────────────┘
+  INGESTION PIPELINE
 
-  ┌────────────────── QUERY PIPELINE ──────────────────────┐
-  │                                                        │
-  │  Question ──▶ Retrieval ──▶ Reranker ──▶ Generation    │
-  │               (Pinecone     (BGE-M3)     (LangChain    │
-  │                search)                    ChatOpenAI)   │
-  │                                           with [1][2]   │
-  └────────────────────────────────────────────────────────┘
+  PDF --> Page Extraction --> Chunking --> Pinecone
+          (per-page text)    (512 chars,   (upsert with
+                              64 overlap)  integrated
+                                           embedding)
+
+  AGENTIC QUERY PIPELINE
+
+  Question --> Agent --> Sub-queries --> Multi-Retrieve --> Rerank --> Generate
+               (LLM      (per-entity     (Pinecone         (BGE-M3)   (ChatOpenAI
+               decompose)  queries)        search)                      with [1][2])
 ```
 
-| Stage       | What it does                                       | Model / Service                  |
-|-------------|----------------------------------------------------|----------------------------------|
-| Ingestion   | Extracts text per page from PDF, splits into chunks | `pypdf`                          |
-| Embedding   | Stores chunks with server-side embedding            | Pinecone `multilingual-e5-large` |
-| Retrieval   | Semantic vector search over stored chunks           | Pinecone integrated search       |
-| Reranking   | Re-orders results by true relevance to the query    | Pinecone `bge-reranker-v2-m3`    |
-| Generation  | Produces an answer with inline citations            | LangChain `ChatOpenAI` (`gpt-4o-mini`) |
-
----
+| Stage          | What it does                                       | Model / Service                  |
+|----------------|----------------------------------------------------|----------------------------------|
+| Ingestion      | Extracts text per page from PDF, splits into chunks | `pypdf`                          |
+| Embedding      | Stores chunks with server-side embedding            | Pinecone `multilingual-e5-large` |
+| Decomposition  | Breaks complex queries into focused sub-queries     | OpenAI `gpt-4o-mini`             |
+| Retrieval      | Semantic vector search with source diversity        | Pinecone integrated search       |
+| Reranking      | Re-orders results by true relevance to the query    | Pinecone `bge-reranker-v2-m3`    |
+| Generation     | Produces an answer with inline citations            | LangChain `ChatOpenAI` (`gpt-4o-mini`) |
 
 ## Project Structure
 
@@ -45,9 +39,10 @@ rag-classic/
 │   ├── config.py          # Settings & environment variables
 │   ├── ingestion.py       # PDF/TXT loading, page extraction, chunking
 │   ├── embedding.py       # Create Pinecone index & upsert records
-│   ├── retrieval.py       # Semantic vector search
-│   ├── reranker.py        # Rerank with bge-reranker-v2-m3
+│   ├── retrieval.py       # Semantic vector search with source diversity
+│   ├── reranker.py        # Two-stage rerank with BGE reranker
 │   ├── generation.py      # LLM answer generation with citations
+│   ├── agent.py           # Agentic RAG: query decomposition & multi-retrieve
 │   └── api.py             # FastAPI REST endpoints
 ├── docs/                  # Source documents
 │   ├── Apple_Q24.pdf
@@ -55,20 +50,18 @@ rag-classic/
 ├── rag_test.py            # Bare-minimum pipeline walkthrough (no functions)
 ├── main.py                # CLI entry point (ingest / ask / serve)
 ├── pyproject.toml         # Dependencies
-├── .env                   # API keys (not committed — see .gitignore)
+├── .env                   # API keys (not committed)
 ├── .gitignore
 └── README.md
 ```
-
----
 
 ## Setup
 
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/fnusatvik07/rag-classic.git
-cd rag-classic
+git clone https://github.com/fnusatvik07/rag-cicd.git
+cd rag-cicd
 
 # Install with uv (recommended)
 uv pip install -e .
@@ -101,8 +94,6 @@ LLM model        : gpt-4o-mini
 ✅ Config loaded successfully!
 ```
 
----
-
 ## Quick Start
 
 ```bash
@@ -113,18 +104,19 @@ uv pip install -e .
 python main.py ingest docs/Apple_Q24.pdf
 python main.py ingest docs/Nike-Inc-2025_10K.pdf
 
-# 3. Ask a question
+# 3. Ask a question (agentic mode)
 python main.py ask "What was Apple's revenue in Q4 2024?"
 
-# 4. Or start the API server
+# 4. Cross-document comparison (auto-decomposes)
+python main.py ask "Compare Apple and Nike revenue"
+
+# 5. Or start the API server
 python main.py serve
 ```
 
----
-
 ## Pipeline Walkthrough (`rag_test.py`)
 
-A single-file, no-functions walkthrough of the entire RAG pipeline — great for learning or demos:
+A single-file, no-functions walkthrough of the entire RAG pipeline, great for learning or demos:
 
 ```bash
 python rag_test.py
@@ -144,8 +136,6 @@ It runs all 9 steps linearly:
 | 8    | Generate clean final answer from reranked chunks |
 | 9    | Test `/generate` API endpoint (if server running)|
 
----
-
 ## CLI Usage
 
 ### Ingest a document
@@ -158,11 +148,14 @@ python main.py ingest docs/Nike-Inc-2025_10K.pdf
 ### Ask a question
 
 ```bash
-# Default (with reranking + citations)
+# Default (agentic mode with reranking + citations)
 python main.py ask "What was Apple's revenue in Q4 2024?"
 
-# Debug mode — shows retrieval vs reranked comparison
-python main.py ask "What was Apple's revenue in Q4 2024?" --debug
+# Cross-document queries (agent auto-decomposes)
+python main.py ask "Compare Apple and Nike revenue"
+
+# Debug mode — shows sub-queries, merged results, source coverage
+python main.py ask "Compare Apple and Nike revenue" --debug
 
 # Skip reranking — raw vector search only
 python main.py ask "What was Apple's revenue in Q4 2024?" --no-rerank
@@ -171,16 +164,23 @@ python main.py ask "What was Apple's revenue in Q4 2024?" --no-rerank
 **Example output:**
 
 ```
+🔍 Question: Compare Apple and Nike revenue
+
+🧠 Agent decomposed into 2 sub-queries:
+   1. What was Apple's total revenue?
+   2. What was Nike's total revenue?
+
 💬 Answer:
-Apple's total revenue in Q4 2024 was $94,930 million [1].
+Apple's total net sales were $416.2 billion [1], while Nike's total
+revenues were $46.3 billion [2].
 
 References:
 [1] Apple_Q24.pdf, p.1
+[2] Nike-Inc-2025_10K.pdf, p.32
 
-📄 Sources used:
-  [1] Apple_Q24.pdf, p.1 (score: 0.9225)
-  [2] Apple_Q24.pdf, p.1,2 (score: 0.9035)
-  [3] Apple_Q24.pdf, p.3,4 (score: 0.5195)
+📄 Sources used (decompose → multi-retrieve → rerank → generate):
+  [1] Apple_Q24.pdf, p.1 (score: 0.9147)
+  [2] Nike-Inc-2025_10K.pdf, p.32 (score: 0.9938)
 ```
 
 ### Test individual modules
@@ -192,9 +192,8 @@ python -m app.embedding                           # Test upsert (dummy data)
 python -m app.retrieval "What was Apple's revenue" # Test vector search
 python -m app.reranker "What was Apple's revenue"  # Test reranking
 python -m app.generation                           # Test LLM generation
+python -m app.agent "Compare Apple and Nike"       # Test agentic pipeline
 ```
-
----
 
 ## API Server
 
@@ -210,7 +209,7 @@ Server runs at **http://localhost:8000** — Swagger docs at **http://localhost:
 |--------|--------------|------------------------------------------------------|
 | GET    | `/health`    | Health check                                         |
 | POST   | `/ingest`    | Ingest a document by file path                       |
-| POST   | `/chat`      | Ask a question (full RAG pipeline + debug mode)      |
+| POST   | `/chat`      | Ask a question (agentic RAG pipeline + debug mode)   |
 | POST   | `/generate`  | Retrieve → rerank → generate (clean response)        |
 | POST   | `/search`    | Search only (no generation)                          |
 
@@ -223,18 +222,18 @@ curl -X POST http://localhost:8000/ingest \
   -d '{"file_path": "/absolute/path/to/docs/Apple_Q24.pdf"}'
 ```
 
-**Chat:**
+**Chat (agentic mode, default):**
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"question": "What was Nike total revenue?", "use_reranker": true}'
+  -d '{"question": "Compare Apple and Nike revenue"}'
 ```
 
-**Chat with debug (shows retrieval vs reranked):**
+**Chat (classic mode, no agent):**
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"question": "What was Nike total revenue?", "use_reranker": true, "debug": true}'
+  -d '{"question": "What was Nike total revenue?", "agentic": false}'
 ```
 
 **Generate (retrieve → rerank → generate):**
@@ -251,15 +250,15 @@ curl -X POST http://localhost:8000/search \
   -d '{"query": "Apple earnings", "top_k": 5, "use_reranker": true}'
 ```
 
----
-
 ## Key Features
 
-- **LangChain Integration** — Uses `langchain-openai` `ChatOpenAI` for LLM generation (latest API: `llm.invoke()`)
-- **Integrated Embedding** — Pinecone handles embedding server-side via `multilingual-e5-large`; no local embedding model needed
+- **Agentic Query Decomposition** — LLM agent breaks complex queries into sub-queries for better multi-source retrieval
+- **Source Diversity** — Retrieval ensures smaller documents aren't drowned out by larger ones
+- **Multi-Source Retrieval** — Runs separate searches per sub-query and merges results with deduplication
+- **LangChain Integration** — Uses `langchain-openai` `ChatOpenAI` for LLM generation
+- **Integrated Embedding** — Pinecone handles embedding server-side via `multilingual-e5-large`
 - **Page Number Tracking** — Each chunk carries its source page number(s) through the entire pipeline
-- **Reranking** — `bge-reranker-v2-m3` reorders retrieval results for better relevance
+- **Two-Stage Reranking** — Diverse retrieval followed by `bge-reranker-v2-m3` reranking
 - **Inline Citations** — LLM answers include `[1]`, `[2]` references with source file and page numbers
-- **Debug Mode** — `--debug` flag shows retrieval vs reranked comparison and position changes
-- **`/generate` Endpoint** — Clean API endpoint returning answer, sources, and pipeline info
-- **Skip Duplicate Ingestion** — `rag_test.py` checks if documents are already indexed before re-ingesting
+- **Debug Mode** — `--debug` flag shows sub-queries, merged results, and source coverage
+- **Classic Fallback** — Set `agentic: false` in the API to use the classic single-query pipeline

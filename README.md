@@ -1,4 +1,4 @@
-# RAG Classic — Agentic RAG Chatbot
+# RAG Classic - Agentic RAG Chatbot
 
 A production-style Retrieval-Augmented Generation (RAG) chatbot built with **Pinecone**, **LangChain**, and **FastAPI**.
 

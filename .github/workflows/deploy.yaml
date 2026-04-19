@@ -9,7 +9,7 @@ on:
 env:
   GCP_PROJECT_ID: rag-deployment-493815
   GCP_REGION: us-central1
-  IMAGE: us-central1-docker.pkg.dev/rag-deployment-493815/rag-classic/rag-classic
+  IMAGE: us-central1-docker.pkg.dev/rag-deployment-493815/rag-deployment/rag-classic
   SERVICE_NAME: rag-classic
 
 jobs:

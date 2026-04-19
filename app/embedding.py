@@ -4,16 +4,16 @@ using Pinecone's integrated inference (server-side embeddings).
 """
 
 import time
-from typing import List, Dict
+
 from pinecone import Pinecone
 
 from app.config import (
     PINECONE_API_KEY,
+    PINECONE_CLOUD,
+    PINECONE_EMBED_MODEL,
     PINECONE_INDEX_NAME,
     PINECONE_NAMESPACE,
-    PINECONE_CLOUD,
     PINECONE_REGION,
-    PINECONE_EMBED_MODEL,
 )
 
 # ── Pinecone client (module-level singleton) ─────────────────────────────────
@@ -41,7 +41,7 @@ def _get_or_create_index():
     return _pc.Index(PINECONE_INDEX_NAME)
 
 
-def upsert_chunks(records: List[Dict], batch_size: int = 96) -> int:
+def upsert_chunks(records: list[dict], batch_size: int = 96) -> int:
     """
     Upsert chunk records into Pinecone.
     The index uses integrated embedding, so we upsert raw text

@@ -13,20 +13,21 @@ Usage:
     python main.py ask "What was Apple's revenue in Q4 2024?"
 """
 
-import sys
 import os
+import sys
+
 import uvicorn
 
 
 def serve():
     """Start the FastAPI server."""
-    uvicorn.run("app.api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.api:app", host="0.0.0.0", port=8000, reload=True)  # noqa: S104
 
 
 def ingest(file_path: str):
     """Ingest a single document into the vector store."""
-    from app.ingestion import ingest_document
     from app.embedding import upsert_chunks
+    from app.ingestion import ingest_document
 
     abs_path = os.path.abspath(file_path)
     if not os.path.exists(abs_path):
@@ -40,14 +41,14 @@ def ingest(file_path: str):
 
 def _print_hits(label: str, hits):
     """Pretty-print a list of retrieved/reranked chunks."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {label} ({len(hits)} results)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for i, h in enumerate(hits, 1):
-        pages = h.get('pages', '')
+        pages = h.get("pages", "")
         page_label = f" | p.{pages}" if pages else ""
         print(f"  [{i}] score={h['score']:.4f} | source={h['source']}{page_label}")
-        preview = h['chunk_text'][:200].replace('\n', ' ')
+        preview = h["chunk_text"][:200].replace("\n", " ")
         print(f"      {preview}...")
     print()
 
@@ -78,7 +79,7 @@ def ask(question: str, use_reranker: bool = True, debug: bool = False):
         for i, sq in enumerate(sub_queries, 1):
             print(f"   {i}. {sq}")
     else:
-        print(f"\n🧠 Agent: single query (no decomposition needed)")
+        print("\n🧠 Agent: single query (no decomposition needed)")
 
     chunks = result.get("sources", [])
 
@@ -97,7 +98,7 @@ def ask(question: str, use_reranker: bool = True, debug: bool = False):
     # ── Source summary ────────────────────────────────────────────────
     print(f"📄 Sources used ({result.get('pipeline', '')}):")
     for i, c in enumerate(chunks, 1):
-        pages = c.get('pages', '')
+        pages = c.get("pages", "")
         page_label = f", p.{pages}" if pages else ""
         print(f"  [{i}] {c['source']}{page_label} (score: {c['score']:.4f})")
 

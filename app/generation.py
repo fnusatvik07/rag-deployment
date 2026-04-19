@@ -4,10 +4,9 @@ and returns the final answer.
 Uses LangChain's ChatOpenAI for LLM interaction.
 """
 
-from typing import List, Dict
 from langchain_openai import ChatOpenAI
 
-from app.config import OPENAI_API_KEY, OPENAI_MODEL, MAX_TOKENS, TEMPERATURE
+from app.config import MAX_TOKENS, OPENAI_API_KEY, OPENAI_MODEL, TEMPERATURE
 
 _llm = ChatOpenAI(
     model=OPENAI_MODEL,
@@ -17,8 +16,9 @@ _llm = ChatOpenAI(
 )
 
 SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on the provided context.
-Answer using ONLY the information in the context chunks below. Synthesize information across multiple chunks when needed to build a complete answer.
-If the context contains partial information relevant to the question, provide what you can and clearly state what is missing.
+Answer using ONLY the information in the context chunks below.
+Synthesize information across multiple chunks when needed to build a complete answer.
+If the context contains partial information relevant to the question, provide what you can.
 Only say "I don't have enough information" if the context contains absolutely nothing relevant.
 
 CITATION RULES:
@@ -36,7 +36,7 @@ References:
 [2] Apple_Q24.pdf, p.5"""
 
 
-def build_context_block(chunks: List[Dict]) -> str:
+def build_context_block(chunks: list[dict]) -> str:
     """Format retrieved chunks into a numbered context string with page info."""
     parts = []
     for i, c in enumerate(chunks, 1):
@@ -48,7 +48,7 @@ def build_context_block(chunks: List[Dict]) -> str:
     return "\n\n".join(parts)
 
 
-def generate_answer(query: str, chunks: List[Dict]) -> str:
+def generate_answer(query: str, chunks: list[dict]) -> str:
     """
     Generate an answer with inline citations using LangChain ChatOpenAI.
     """
@@ -69,8 +69,14 @@ if __name__ == "__main__":
 
     # Test with dummy context
     test_chunks = [
-        {"chunk_text": "Apple reported Q4 2024 revenue of $94.9 billion, up 6% year over year.", "source": "Apple_Q24.pdf"},
-        {"chunk_text": "Services revenue reached an all-time record of $25 billion.", "source": "Apple_Q24.pdf"},
+        {
+            "chunk_text": "Apple reported Q4 2024 revenue of $94.9 billion, up 6% YoY.",
+            "source": "Apple_Q24.pdf",
+        },
+        {
+            "chunk_text": "Services revenue reached an all-time record of $25 billion.",
+            "source": "Apple_Q24.pdf",
+        },
     ]
     test_query = "What was Apple's revenue in Q4 2024?"
 

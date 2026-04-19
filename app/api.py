@@ -4,14 +4,13 @@ API module — FastAPI application exposing the RAG chatbot endpoints.
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
 
-from app.ingestion import ingest_document
-from app.embedding import upsert_chunks
-from app.retrieval import search
-from app.reranker import rerank
-from app.generation import generate_answer
 from app.agent import agentic_rag
+from app.embedding import upsert_chunks
+from app.generation import generate_answer
+from app.ingestion import ingest_document
+from app.reranker import rerank
+from app.retrieval import search
 
 # ── FastAPI app ──────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -22,6 +21,7 @@ app = FastAPI(
 
 
 # ── Request / Response models ────────────────────────────────────────────────
+
 
 class IngestRequest(BaseModel):
     file_path: str  # absolute path to the document to ingest
@@ -35,27 +35,27 @@ class IngestResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
-    use_reranker: bool = True   # toggle reranking on/off
-    debug: bool = False         # show both retrieval + reranked results
-    agentic: bool = True        # use agentic query decomposition
+    use_reranker: bool = True  # toggle reranking on/off
+    debug: bool = False  # show both retrieval + reranked results
+    agentic: bool = True  # use agentic query decomposition
 
 
 class SourceChunk(BaseModel):
     id: str
     score: float
     source: str
-    pages: str                  # e.g. "3" or "3,4"
+    pages: str  # e.g. "3" or "3,4"
     chunk_text: str
-    citation: str               # e.g. "[1]"
+    citation: str  # e.g. "[1]"
 
 
 class ChatResponse(BaseModel):
     answer: str
-    sources: List[SourceChunk]
-    sub_queries: Optional[List[str]] = None          # agent decomposition
-    pipeline: Optional[str] = None
-    retrieved: Optional[List[SourceChunk]] = None    # raw retrieval (debug)
-    reranked: Optional[List[SourceChunk]] = None     # after reranking (debug)
+    sources: list[SourceChunk]
+    sub_queries: list[str] | None = None  # agent decomposition
+    pipeline: str | None = None
+    retrieved: list[SourceChunk] | None = None  # raw retrieval (debug)
+    reranked: list[SourceChunk] | None = None  # after reranking (debug)
 
 
 class GenerateRequest(BaseModel):
@@ -68,17 +68,18 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     question: str
     answer: str
-    sources: List[SourceChunk]
-    pipeline: str               # "retrieve → rerank → generate" or "retrieve → generate"
+    sources: list[SourceChunk]
+    pipeline: str  # "retrieve → rerank → generate" or "retrieve → generate"
 
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: Optional[int] = 10
+    top_k: int | None = 10
     use_reranker: bool = True
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
+
 
 @app.get("/health")
 def health_check():
@@ -99,12 +100,12 @@ def ingest_endpoint(req: IngestRequest):
             chunks=upserted,
             message="Document ingested successfully",
         )
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="File not found")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail="File not found") from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -114,6 +115,7 @@ def chat_endpoint(req: ChatRequest):
     Falls back to classic pipeline if agentic=False.
     """
     try:
+
         def _to_source(c, idx):
             return SourceChunk(
                 id=c["id"],
@@ -175,7 +177,7 @@ def chat_endpoint(req: ChatRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/search")
@@ -184,13 +186,10 @@ def search_endpoint(req: SearchRequest):
     Search only (no generation) — useful for debugging retrieval.
     """
     try:
-        if req.use_reranker:
-            results = rerank(req.query, top_k=req.top_k)
-        else:
-            results = search(req.query, top_k=req.top_k)
+        results = rerank(req.query, top_k=req.top_k) if req.use_reranker else search(req.query, top_k=req.top_k)
         return {"query": req.query, "results": results}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/generate", response_model=GenerateResponse)
@@ -208,7 +207,7 @@ def generate_endpoint(req: GenerateRequest):
             chunks = rerank(req.question, top_k=req.top_k, top_n=req.top_n)
             pipeline = "retrieve → rerank → generate"
         else:
-            chunks = retrieved_chunks[:req.top_n]
+            chunks = retrieved_chunks[: req.top_n]
             pipeline = "retrieve → generate"
 
         if not chunks:
@@ -242,4 +241,4 @@ def generate_endpoint(req: GenerateRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

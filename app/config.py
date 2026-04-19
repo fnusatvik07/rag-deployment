@@ -3,6 +3,7 @@ Configuration module — loads environment variables and defines app-wide settin
 """
 
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,15 +18,15 @@ PINECONE_NAMESPACE: str = "documents"
 PINECONE_CLOUD: str = "aws"
 PINECONE_REGION: str = "us-east-1"
 PINECONE_EMBED_MODEL: str = "multilingual-e5-large"  # Pinecone hosted embedding
-PINECONE_RERANK_MODEL: str = "bge-reranker-v2-m3"    # Pinecone hosted reranker
+PINECONE_RERANK_MODEL: str = "bge-reranker-v2-m3"  # Pinecone hosted reranker
 
 # ── Chunking Settings ────────────────────────────────────────────────────────
-CHUNK_SIZE: int = 512          # characters per chunk
-CHUNK_OVERLAP: int = 64        # overlap between chunks
+CHUNK_SIZE: int = 512  # characters per chunk
+CHUNK_OVERLAP: int = 64  # overlap between chunks
 
 # ── Retrieval Settings ────────────────────────────────────────────────────────
-TOP_K: int = 20                # candidates to fetch from vector search
-RERANK_TOP_N: int = 10         # results to keep after reranking
+TOP_K: int = 20  # candidates to fetch from vector search
+RERANK_TOP_N: int = 10  # results to keep after reranking
 
 # ── Generation Settings ──────────────────────────────────────────────────────
 OPENAI_MODEL: str = "gpt-4o-mini"

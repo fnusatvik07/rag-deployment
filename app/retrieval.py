@@ -3,7 +3,6 @@ Retrieval module — performs semantic search against the Pinecone index.
 Uses integrated embedding, so we search with raw text (no manual embedding needed).
 """
 
-from typing import List, Dict
 from pinecone import Pinecone
 
 from app.config import (
@@ -16,7 +15,7 @@ from app.config import (
 _pc = Pinecone(api_key=PINECONE_API_KEY)
 
 
-def _parse_hits(results) -> List[Dict]:
+def _parse_hits(results) -> list[dict]:
     """Parse Pinecone search results into a flat list of hit dicts."""
     hits = []
     for item in results.get("result", {}).get("hits", []):
@@ -32,7 +31,7 @@ def _parse_hits(results) -> List[Dict]:
     return hits
 
 
-def _ensure_source_diversity(hits: List[Dict], top_k: int) -> List[Dict]:
+def _ensure_source_diversity(hits: list[dict], top_k: int) -> list[dict]:
     """
     Ensure results include chunks from multiple sources when available.
     Reserves at least 30% of top_k slots for minority sources.
@@ -72,7 +71,7 @@ def _ensure_source_diversity(hits: List[Dict], top_k: int) -> List[Dict]:
     return result[:top_k]
 
 
-def search(query: str, top_k: int = TOP_K) -> List[Dict]:
+def search(query: str, top_k: int = TOP_K) -> list[dict]:
     """
     Perform a semantic vector search in Pinecone using integrated embedding.
     Pinecone embeds the query text automatically.

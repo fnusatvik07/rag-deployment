@@ -7,13 +7,13 @@ Pipeline: Query → Decompose → Multi-Retrieve → Rerank → Generate
 """
 
 import json
-from typing import List, Dict
+
 from langchain_openai import ChatOpenAI
 
-from app.config import OPENAI_API_KEY, OPENAI_MODEL, MAX_TOKENS, TEMPERATURE
-from app.retrieval import search
+from app.config import MAX_TOKENS, OPENAI_API_KEY, OPENAI_MODEL
+from app.generation import generate_answer
 from app.reranker import rerank
-from app.generation import generate_answer, build_context_block
+from app.retrieval import search
 
 _llm = ChatOpenAI(
     model=OPENAI_MODEL,
@@ -39,12 +39,12 @@ Respond with ONLY a JSON object in this exact format (no markdown, no explanatio
 
 Examples:
 - "What was Apple's revenue?" → {"sub_queries": ["What was Apple's revenue?"]}
-- "Compare Apple and Nike revenue" → {"sub_queries": ["What was Apple's total revenue?", "What was Nike's total revenue?"]}
-- "How did Nike's gross margin change and what were their operating expenses?" → {"sub_queries": ["What was Nike's gross margin change?", "What were Nike's operating expenses?"]}
+- "Compare Apple and Nike revenue" → {"sub_queries": ["Apple's total revenue?", "Nike's total revenue?"]}
+- "Nike's gross margin and operating expenses?" → {"sub_queries": ["Nike's margin?", "Nike's expenses?"]}
 """
 
 
-def decompose_query(question: str) -> List[str]:
+def decompose_query(question: str) -> list[str]:
     """Use the LLM to decompose a complex query into sub-queries."""
     messages = [
         ("system", DECOMPOSE_PROMPT),
@@ -73,7 +73,8 @@ def decompose_query(question: str) -> List[str]:
 
 # ── Multi-Query Retrieval ────────────────────────────────────────────────────
 
-def multi_retrieve(sub_queries: List[str], use_reranker: bool = True, top_k: int = 20, top_n: int = 5) -> List[Dict]:
+
+def multi_retrieve(sub_queries: list[str], use_reranker: bool = True, top_k: int = 20, top_n: int = 5) -> list[dict]:
     """
     Run retrieval for each sub-query and merge results with deduplication.
     Keeps the highest score when a chunk appears in multiple sub-query results.
@@ -81,10 +82,7 @@ def multi_retrieve(sub_queries: List[str], use_reranker: bool = True, top_k: int
     seen_ids = {}
 
     for query in sub_queries:
-        if use_reranker:
-            hits = rerank(query, top_k=top_k, top_n=top_n)
-        else:
-            hits = search(query, top_k=top_n)
+        hits = rerank(query, top_k=top_k, top_n=top_n) if use_reranker else search(query, top_k=top_n)
 
         for hit in hits:
             chunk_id = hit["id"]
@@ -98,13 +96,14 @@ def multi_retrieve(sub_queries: List[str], use_reranker: bool = True, top_k: int
 
 # ── Agentic RAG Pipeline ────────────────────────────────────────────────────
 
+
 def agentic_rag(
     question: str,
     use_reranker: bool = True,
     top_k: int = 20,
     top_n: int = 5,
     debug: bool = False,
-) -> Dict:
+) -> dict:
     """
     Full agentic RAG pipeline:
     1. Decompose the query into sub-queries
@@ -134,7 +133,11 @@ def agentic_rag(
         "answer": answer,
         "sources": chunks,
         "sub_queries": sub_queries,
-        "pipeline": "decompose → multi-retrieve → rerank → generate" if use_reranker else "decompose → multi-retrieve → generate",
+        "pipeline": (
+            "decompose → multi-retrieve → rerank → generate"
+            if use_reranker
+            else "decompose → multi-retrieve → generate"
+        ),
     }
 
     return result
@@ -155,7 +158,7 @@ if __name__ == "__main__":
         print(f"  {i}. {sq}")
 
     # Step 2: Multi-retrieve
-    print(f"\nRetrieving for each sub-query...")
+    print("\nRetrieving for each sub-query...")
     chunks = multi_retrieve(sub_queries)
     print(f"Merged: {len(chunks)} unique chunks")
 
@@ -163,20 +166,20 @@ if __name__ == "__main__":
     print(f"Sources covered: {sources}")
 
     # Step 3: Generate
-    print(f"\nGenerating answer...")
+    print("\nGenerating answer...")
     result = agentic_rag(question)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Question: {question}")
     print(f"  Sub-queries: {result['sub_queries']}")
     print(f"  Pipeline: {result['pipeline']}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"\n{result['answer']}\n")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Sources ({len(result['sources'])}):")
     for i, c in enumerate(result["sources"], 1):
         pages = c.get("pages", "")
         page_label = f", p.{pages}" if pages else ""
         print(f"  [{i}] {c['source']}{page_label} (score: {c['score']:.4f})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("\n Agentic RAG test passed!")

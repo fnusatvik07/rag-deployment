@@ -3,13 +3,10 @@ Reranker module — uses Pinecone's hosted BGE reranker to reorder
 retrieval results by relevance to the query.
 """
 
-from typing import List, Dict
 from pinecone import Pinecone
 
 from app.config import (
     PINECONE_API_KEY,
-    PINECONE_INDEX_NAME,
-    PINECONE_NAMESPACE,
     PINECONE_RERANK_MODEL,
     RERANK_TOP_N,
     TOP_K,
@@ -19,7 +16,7 @@ from app.retrieval import search as vector_search
 _pc = Pinecone(api_key=PINECONE_API_KEY)
 
 
-def rerank(query: str, top_k: int = TOP_K, top_n: int = RERANK_TOP_N) -> List[Dict]:
+def rerank(query: str, top_k: int = TOP_K, top_n: int = RERANK_TOP_N) -> list[dict]:
     """
     Two-stage rerank: first retrieve diverse candidates via vector_search,
     then rerank them with Pinecone's hosted BGE reranker.

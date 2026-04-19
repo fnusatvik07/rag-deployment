@@ -4,15 +4,15 @@ Ingestion module — loads a document (PDF/TXT) and splits it into chunks.
 
 import os
 import re
-from typing import List, Dict
+
 from pypdf import PdfReader
 
-from app.config import CHUNK_SIZE, CHUNK_OVERLAP
-
+from app.config import CHUNK_OVERLAP, CHUNK_SIZE
 
 # ── Text Extraction ──────────────────────────────────────────────────────────
 
-def extract_pages_from_pdf(file_path: str) -> List[Dict]:
+
+def extract_pages_from_pdf(file_path: str) -> list[dict]:
     """Extract text from each page of a PDF. Returns [{page: int, text: str}, ...]."""
     reader = PdfReader(file_path)
     pages = []
@@ -23,13 +23,13 @@ def extract_pages_from_pdf(file_path: str) -> List[Dict]:
     return pages
 
 
-def extract_pages_from_txt(file_path: str) -> List[Dict]:
+def extract_pages_from_txt(file_path: str) -> list[dict]:
     """Read plain-text file as a single page."""
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         return [{"page": 1, "text": f.read()}]
 
 
-def extract_pages(file_path: str) -> List[Dict]:
+def extract_pages(file_path: str) -> list[dict]:
     """Extract pages from a file based on its extension."""
     ext = os.path.splitext(file_path)[1].lower()
     if ext == ".pdf":
@@ -42,6 +42,7 @@ def extract_pages(file_path: str) -> List[Dict]:
 
 # ── Chunking ─────────────────────────────────────────────────────────────────
 
+
 def clean_text(text: str) -> str:
     """Normalise whitespace."""
     text = re.sub(r"\s+", " ", text)
@@ -49,17 +50,17 @@ def clean_text(text: str) -> str:
 
 
 def chunk_pages(
-    pages: List[Dict],
+    pages: list[dict],
     chunk_size: int = CHUNK_SIZE,
     overlap: int = CHUNK_OVERLAP,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Chunk text from pages while tracking which page(s) each chunk came from.
     Returns [{"chunk_text": str, "pages": [int, ...]}, ...].
     """
     # Build a flat character stream and a parallel array mapping each char → page number
     full_text = ""
-    char_to_page: List[int] = []
+    char_to_page: list[int] = []
     for p in pages:
         cleaned = clean_text(p["text"])
         if cleaned:
@@ -69,7 +70,7 @@ def chunk_pages(
             full_text += cleaned
             char_to_page.extend([p["page"]] * len(cleaned))
 
-    chunks: List[Dict] = []
+    chunks: list[dict] = []
     start = 0
     while start < len(full_text):
         end = min(start + chunk_size, len(full_text))
@@ -84,7 +85,8 @@ def chunk_pages(
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
-def ingest_document(file_path: str) -> List[Dict]:
+
+def ingest_document(file_path: str) -> list[dict]:
     """
     Full ingestion pipeline for a single document.
     Returns a list of dicts with keys: id, chunk_text, source, pages.
@@ -118,11 +120,11 @@ if __name__ == "__main__":
 
     records = ingest_document(test_path)
     print(f"Total chunks: {len(records)}")
-    print(f"\nFirst chunk preview:")
+    print("\nFirst chunk preview:")
     print(f"  ID   : {records[0]['id']}")
     print(f"  Source: {records[0]['source']}")
     print(f"  Text : {records[0]['chunk_text'][:200]}...")
-    print(f"\nLast chunk preview:")
+    print("\nLast chunk preview:")
     print(f"  ID   : {records[-1]['id']}")
     print(f"  Text : {records[-1]['chunk_text'][:200]}...")
     print("✅ Ingestion test passed!")

@@ -47,6 +47,9 @@ jobs:
           uv pip install pytest pytest-cov httpx
 
       - name: Run tests with coverage
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           . .venv/bin/activate
           python -m pytest tests/ -v --cov=app --cov=main --cov-report=term-missing --cov-fail-under=80

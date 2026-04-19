@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── API Keys ──────────────────────────────────────────────────────────────────
-PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
-OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "not-set")
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "not-set")
 
 # ── Pinecone Settings ────────────────────────────────────────────────────────
 PINECONE_INDEX_NAME: str = "rag-classic"

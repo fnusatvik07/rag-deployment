@@ -44,7 +44,7 @@ jobs:
           uv venv .venv
           . .venv/bin/activate
           uv pip install .
-          uv pip install pytest pytest-cov httpx
+          uv pip install pytest pytest-cov httpx ruff
 
       - name: Run tests with coverage
         env:

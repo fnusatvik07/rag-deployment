@@ -17,11 +17,14 @@ _llm = ChatOpenAI(
 )
 
 SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on the provided context.
-Use ONLY the context below to answer. If the answer is not in the context, say "I don't have enough information to answer that."
+Answer using ONLY the information in the context chunks below. Synthesize information across multiple chunks when needed to build a complete answer.
+If the context contains partial information relevant to the question, provide what you can and clearly state what is missing.
+Only say "I don't have enough information" if the context contains absolutely nothing relevant.
 
 CITATION RULES:
 - Each context chunk is labeled [1], [2], etc. with its source document and page number(s).
 - When you use information from a chunk, cite it inline like [1], [2], etc.
+- Combine data from multiple chunks and sources when the question requires it.
 - At the end of your answer, add a "References" section listing each cited source with page numbers.
 - Format: [n] source_filename, p.X
 

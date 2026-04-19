@@ -54,51 +54,48 @@ def _print_hits(label: str, hits):
 
 def ask(question: str, use_reranker: bool = True, debug: bool = False):
     """
-    Run the full RAG pipeline from the command line.
+    Run the agentic RAG pipeline from the command line.
+    The agent decomposes complex queries, retrieves per sub-query, and synthesizes.
 
     Flags:
         --no-rerank : skip reranking, use raw retrieval only
-        --debug     : show both retrieval AND reranked results side-by-side
+        --debug     : show decomposition + retrieval details
     """
-    from app.retrieval import search
-    from app.reranker import rerank
-    from app.generation import generate_answer
+    from app.agent import agentic_rag
 
     print(f"\n🔍 Question: {question}")
 
-    # ── Always fetch raw retrieval results ────────────────────────────
-    retrieved = search(question)
+    result = agentic_rag(
+        question,
+        use_reranker=use_reranker,
+        debug=debug,
+    )
 
-    if debug or not use_reranker:
-        _print_hits("📡 Retrieved (vector search)", retrieved)
-
-    # ── Rerank if enabled ─────────────────────────────────────────────
-    if use_reranker:
-        reranked = rerank(question)
-        if debug:
-            _print_hits("🔀 Reranked (bge-reranker-v2-m3)", reranked)
-            # Show how ordering changed
-            print("📊 Rerank impact:")
-            retrieved_ids = [h['id'] for h in retrieved]
-            for i, h in enumerate(reranked, 1):
-                old_pos = retrieved_ids.index(h['id']) + 1 if h['id'] in retrieved_ids else '?'
-                delta = f"{old_pos} → {i}" if isinstance(old_pos, int) else "new"
-                print(f"    [{i}] {h['source']}: position {delta}")
-            print()
-        chunks = reranked
+    # ── Show sub-queries ──────────────────────────────────────────────
+    sub_queries = result.get("sub_queries", [])
+    if len(sub_queries) > 1:
+        print(f"\n🧠 Agent decomposed into {len(sub_queries)} sub-queries:")
+        for i, sq in enumerate(sub_queries, 1):
+            print(f"   {i}. {sq}")
     else:
-        chunks = retrieved
+        print(f"\n🧠 Agent: single query (no decomposition needed)")
+
+    chunks = result.get("sources", [])
+
+    if debug and chunks:
+        _print_hits("📡 Merged results (all sub-queries)", chunks)
+        sources = set(c["source"] for c in chunks)
+        print(f"📊 Source coverage: {', '.join(sources)}\n")
 
     if not chunks:
         print("No relevant results found.")
         return
 
-    # ── Generate answer with citations ────────────────────────────────
-    answer = generate_answer(question, chunks)
-    print(f"💬 Answer:\n{answer}\n")
+    # ── Generated answer ──────────────────────────────────────────────
+    print(f"\n💬 Answer:\n{result['answer']}\n")
 
     # ── Source summary ────────────────────────────────────────────────
-    print("📄 Sources used:")
+    print(f"📄 Sources used ({result.get('pipeline', '')}):")
     for i, c in enumerate(chunks, 1):
         pages = c.get('pages', '')
         page_label = f", p.{pages}" if pages else ""

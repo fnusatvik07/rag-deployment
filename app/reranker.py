@@ -14,42 +14,46 @@ from app.config import (
     RERANK_TOP_N,
     TOP_K,
 )
+from app.retrieval import search as vector_search
 
 _pc = Pinecone(api_key=PINECONE_API_KEY)
 
 
 def rerank(query: str, top_k: int = TOP_K, top_n: int = RERANK_TOP_N) -> List[Dict]:
     """
-    Search + rerank in a single Pinecone call.
-    Uses the integrated reranking API with `bge-reranker-v2-m3`.
+    Two-stage rerank: first retrieve diverse candidates via vector_search,
+    then rerank them with Pinecone's hosted BGE reranker.
 
     Returns a list of the top_n most relevant chunks.
     """
-    index = _pc.Index(PINECONE_INDEX_NAME)
+    # Stage 1: Get diverse candidates (source-balanced retrieval)
+    candidates = vector_search(query, top_k=top_k)
 
-    reranked = index.search(
-        namespace=PINECONE_NAMESPACE,
-        query={
-            "top_k": top_k,
-            "inputs": {"text": query},
-        },
-        rerank={
-            "model": PINECONE_RERANK_MODEL,
-            "top_n": top_n,
-            "rank_fields": ["chunk_text"],
-        },
-        fields=["chunk_text", "source", "pages"],
+    if not candidates:
+        return []
+
+    # Stage 2: Rerank candidates using Pinecone inference API
+    docs = [{"text": c["chunk_text"]} for c in candidates]
+
+    reranked = _pc.inference.rerank(
+        model=PINECONE_RERANK_MODEL,
+        query=query,
+        documents=docs,
+        top_n=top_n,
+        rank_fields=["text"],
     )
 
     hits = []
-    for item in reranked.get("result", {}).get("hits", []):
+    for item in reranked.data:
+        idx = item["index"]
+        original = candidates[idx]
         hits.append(
             {
-                "id": item.get("_id", ""),
-                "score": item.get("_score", 0.0),
-                "chunk_text": item.get("fields", {}).get("chunk_text", ""),
-                "source": item.get("fields", {}).get("source", ""),
-                "pages": item.get("fields", {}).get("pages", ""),
+                "id": original["id"],
+                "score": item["score"],
+                "chunk_text": original["chunk_text"],
+                "source": original["source"],
+                "pages": original["pages"],
             }
         )
 

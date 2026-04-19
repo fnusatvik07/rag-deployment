@@ -11,6 +11,7 @@ from app.embedding import upsert_chunks
 from app.retrieval import search
 from app.reranker import rerank
 from app.generation import generate_answer
+from app.agent import agentic_rag
 
 # ── FastAPI app ──────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -36,6 +37,7 @@ class ChatRequest(BaseModel):
     question: str
     use_reranker: bool = True   # toggle reranking on/off
     debug: bool = False         # show both retrieval + reranked results
+    agentic: bool = True        # use agentic query decomposition
 
 
 class SourceChunk(BaseModel):
@@ -50,7 +52,9 @@ class SourceChunk(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     sources: List[SourceChunk]
-    retrieved: Optional[List[SourceChunk]] = None   # raw retrieval (debug)
+    sub_queries: Optional[List[str]] = None          # agent decomposition
+    pipeline: Optional[str] = None
+    retrieved: Optional[List[SourceChunk]] = None    # raw retrieval (debug)
     reranked: Optional[List[SourceChunk]] = None     # after reranking (debug)
 
 
@@ -106,13 +110,40 @@ def ingest_endpoint(req: IngestRequest):
 @app.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest):
     """
-    Full RAG pipeline: retrieve → (rerank) → generate answer.
+    Agentic RAG pipeline: decompose → multi-retrieve → rerank → generate.
+    Falls back to classic pipeline if agentic=False.
     """
     try:
-        # Step 1: Always fetch raw retrieval results
+        def _to_source(c, idx):
+            return SourceChunk(
+                id=c["id"],
+                score=c["score"],
+                source=c["source"],
+                pages=c.get("pages", ""),
+                chunk_text=c["chunk_text"][:200] + "...",
+                citation=f"[{idx}]",
+            )
+
+        if req.agentic:
+            # Agentic pipeline
+            result = agentic_rag(
+                req.question,
+                use_reranker=req.use_reranker,
+                debug=req.debug,
+            )
+            chunks = result.get("sources", [])
+            sources = [_to_source(c, i) for i, c in enumerate(chunks, 1)]
+
+            return ChatResponse(
+                answer=result["answer"],
+                sources=sources,
+                sub_queries=result.get("sub_queries"),
+                pipeline=result.get("pipeline"),
+            )
+
+        # Classic pipeline fallback
         retrieved_chunks = search(req.question)
 
-        # Step 2: Rerank if enabled
         if req.use_reranker:
             reranked_chunks = rerank(req.question)
             chunks = reranked_chunks
@@ -125,22 +156,9 @@ def chat_endpoint(req: ChatRequest):
                 sources=[],
             )
 
-        # Step 3: Generate answer with citations
         answer = generate_answer(req.question, chunks)
-
-        def _to_source(c, idx):
-            return SourceChunk(
-                id=c["id"],
-                score=c["score"],
-                source=c["source"],
-                pages=c.get("pages", ""),
-                chunk_text=c["chunk_text"][:200] + "...",
-                citation=f"[{idx}]",
-            )
-
         sources = [_to_source(c, i) for i, c in enumerate(chunks, 1)]
 
-        # Debug: include raw retrieval + reranked lists for comparison
         debug_retrieved = None
         debug_reranked = None
         if req.debug:
@@ -151,6 +169,7 @@ def chat_endpoint(req: ChatRequest):
         return ChatResponse(
             answer=answer,
             sources=sources,
+            pipeline="retrieve → rerank → generate" if req.use_reranker else "retrieve → generate",
             retrieved=debug_retrieved,
             reranked=debug_reranked,
         )

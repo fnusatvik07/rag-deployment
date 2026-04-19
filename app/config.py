@@ -24,8 +24,8 @@ CHUNK_SIZE: int = 512          # characters per chunk
 CHUNK_OVERLAP: int = 64        # overlap between chunks
 
 # ── Retrieval Settings ────────────────────────────────────────────────────────
-TOP_K: int = 10                # candidates to fetch from vector search
-RERANK_TOP_N: int = 5          # results to keep after reranking
+TOP_K: int = 20                # candidates to fetch from vector search
+RERANK_TOP_N: int = 10         # results to keep after reranking
 
 # ── Generation Settings ──────────────────────────────────────────────────────
 OPENAI_MODEL: str = "gpt-4o-mini"
